@@ -11,3 +11,5 @@ beef:
             authors: ["antisnatchor"]
             clean_timeout: 3000
             cross_origin: true
+            # Require a browser-generated proof before recording a ray.
+            require_execution_proof: true

